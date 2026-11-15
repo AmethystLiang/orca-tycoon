@@ -463,6 +463,24 @@ function fitLoft(cssW, cssH, perPx) {
   return layoutLoft(snapshot, cssW - SCROLLBAR, minScale, helpers)
 }
 
+/**
+ * Device rows for a canvas as tall as the panel. Its CSS height has to be a whole number of CSS
+ * pixels: otherwise, at some pixel ratios (1.1, 1.25, 1.75), the browser shows it a hair short and
+ * one row of the picture is lost. So the first such number of rows at or above the panel's height;
+ * the few over sit below the panel's edge.
+ */
+function canvasRows(cssH) {
+  const rows = Math.round(cssH * dpr())
+  for (let n = rows; n < rows + 64; n++) if (wholeCss(n) !== null) return n
+  return rows
+}
+
+/** `rows` device pixels as a whole number of CSS pixels, or null if they are not one. */
+function wholeCss(rows) {
+  const css = rows / dpr()
+  return Math.abs(css - Math.round(css)) < 1e-3 ? Math.round(css) : null
+}
+
 function resize() {
   layout = fitLayout()
   const w = Math.round(layout.artW * layout.scale * dpr())
@@ -473,15 +491,17 @@ function resize() {
   // size is slow for the browser to put on screen every frame.
   floor.style.width = `${w / dpr()}px`
   floor.style.height = `${h / dpr()}px`
-  const shown = Math.min(h, Math.round(office.clientHeight * dpr()))
-  // Only touch the backing size when it changes: assigning it clears the canvas. The CSS size
-  // comes from the device size, so it is exact at any pixel ratio.
+  const shown = Math.min(h, canvasRows(office.clientHeight))
+  const shownCss = wholeCss(shown) ?? shown / dpr()
+  // Only touch the backing size when it changes: assigning it clears the canvas.
   if (canvas.width !== w || canvas.height !== shown) {
     canvas.width = w
     canvas.height = shown
   }
   canvas.style.width = `${w / dpr()}px`
-  canvas.style.height = `${shown / dpr()}px`
+  canvas.style.height = `${shownCss}px`
+  // the rows below the panel's edge must not hold the canvas off the top at the end of the scroll
+  canvas.style.marginBottom = `${-Math.max(0, shownCss - office.clientHeight)}px`
   draw()
 }
 
